@@ -13,16 +13,7 @@ Set the dataset read path and result storage path
 
 ```Python
 # Datasets directory and output directory
-args["paths"] = {"data": "./data/", "results": "./result/"} 
-```
-Parameter settings.
-
-```Python
-hidden_size=128,
-dropout=0.1,
-masked_data_weight=0.75,
-mask_loss_weight=0.7,
-contrastive_weight=0.07
+args["paths"] = {"data": "./data/", "results": "./result/"}
 ```
 
 scCMA can be run with the following commands.

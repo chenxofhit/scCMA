@@ -84,9 +84,18 @@ def train(args):
         meter = AverageMeter()
         for i, (x, y) in enumerate(data_loader):
             x = x.cuda()
-            x_corrputed, mask = apply_noise(x, mask_probas)
+            
+            # Create two different augmented views for contrastive learning
+            x_view1, mask1 = apply_noise(x, mask_probas)
+            x_view2, mask2 = apply_noise(x, mask_probas)
+            
+            # Concatenate views: [view1; view2]
+            x_augmented = torch.cat([x_view1, x_view2], dim=0)
+            x_original = torch.cat([x, x], dim=0)
+            mask_combined = torch.cat([mask1, mask2], dim=0)
+            
             optimizer.zero_grad()
-            x_corrputed_latent, loss_ae = model.loss_mask(x_corrputed, x, mask)
+            x_corrputed_latent, loss_ae = model.loss_mask(x_augmented, x_original, mask_combined, use_contrastive=True)
             loss_ae.backward()
             optimizer.step()
             meter.update(loss_ae.detach().cpu().numpy())

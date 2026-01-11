@@ -56,18 +56,26 @@ class scCMA(torch.nn.Module):
 
         return latent, predicted_mask, reconstruction
 
-    def loss_mask(self, x, y, mask, labels=None):
+    def loss_mask(self, x, y, mask, use_contrastive=False):
         latent, predicted_mask, reconstruction = self.forward_mask(x)
         w_nums = mask * self.masked_data_weight + (1 - mask) * (1 - self.masked_data_weight)
-        reconstruction_loss = (1 - self.mask_loss_weight - self.contrastive_weight) * torch.mul(
+        
+        # Dynamically adjust reconstruction weight based on whether contrastive learning is used
+        if use_contrastive:
+            recon_weight = 1 - self.mask_loss_weight - self.contrastive_weight
+        else:
+            recon_weight = 1 - self.mask_loss_weight
+        
+        reconstruction_loss = recon_weight * torch.mul(
             w_nums, mse(reconstruction, y, reduction='none'))
 
         mask_loss = self.mask_loss_weight * \
                     bce_logits(predicted_mask, mask, reduction="mean")
         reconstruction_loss = reconstruction_loss.mean()
 
-        if labels is not None:
-
+        # Self-supervised contrastive learning (SimCLR style)
+        # Assumes x contains [view1; view2] where first half and second half are augmented views of same samples
+        if use_contrastive and x.shape[0] % 2 == 0:
             bsz = x.shape[0] // 2
             latent1, latent2 = latent[:bsz], latent[bsz:]
 
@@ -79,7 +87,8 @@ class scCMA(torch.nn.Module):
 
             features = torch.cat([proj1.unsqueeze(1), proj2.unsqueeze(1)], dim=1)
 
-            contrastive_loss = self.supcon_loss(features, labels[:bsz])
+            # SimCLR mode: no labels, positive pairs are different views of same sample
+            contrastive_loss = self.supcon_loss(features, labels=None)
             total_loss = reconstruction_loss + mask_loss + self.contrastive_weight * contrastive_loss
         else:
             total_loss = reconstruction_loss + mask_loss
